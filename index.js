@@ -85,10 +85,11 @@ function setup(gulp, opts) {
     runSequence(...seq, callback);
   });
 
-  gulp.task("clean", function () {
-    return Promise.each(opts.cleanDirs, dir => {
+  gulp.task("clean", function (callback) {
+    Promise.each(opts.cleanDirs, dir => {
       return rimraf(dir);
-    });
+    })
+    .asCallback(callback);
   });
 
   // NOTE: if using generators, check README
