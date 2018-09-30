@@ -35,7 +35,7 @@ function mergeWithDefaultOpts(opts) {
     sassIncludePaths: [],
     browserifyOptions: {
       entries: [],
-      debug: true,
+      plugin: [],
     },
     browserifyEnvConfig: {},
     useNotify: true,
@@ -66,6 +66,19 @@ function setup(gulp, opts) {
       usingBrowserifyConfigEnv && "browserify-config",
       usingBrowserify && "watchify",
       usingWatch && "watch"
+    ]
+    .filter(x => !!x);
+
+    runSequence(...seq, callback);
+  });
+
+  gulp.task("dev", function (callback) {
+    const seq = [
+      "clean",
+      usingBabel && "babel",
+      usingSass && "sass",
+      usingBrowserifyConfigEnv && "browserify-config",
+      usingBrowserify && "browserify",
     ]
     .filter(x => !!x);
 
@@ -144,27 +157,26 @@ function setup(gulp, opts) {
 
   usingBrowserify &&
   gulp.task("browserify", function () {
-    const b = browserify(opts.browserifyOptions);
+    const b = browserify({ ...opts.browserifyOptions, debug: true });
     b.on("log", gutil.log);
     return bundle(b);
   });
 
   usingBrowserify &&
   gulp.task("browserify-prod", function () {
-    const b = browserify(
-      _.defaults(opts.browserifyOptions, { debug: false })
-    );
+    const b = browserify({ ...opts.browserifyOptions, debug: false });
     b.on("log", gutil.log);
     return bundle(b);
   });
 
   usingBrowserify &&
   gulp.task("watchify", function () {
-    const b = browserify(_.assign({
+    const b = browserify({
       cache: {},
       packageCache: {},
-      plugin: [watchify]
-    }, opts.browserifyOptions));
+      plugin: [...opts.browserifyOptions.plugin, watchify],
+      ...opts.browserifyOptions,
+    });
 
     b.on("log", gutil.log);
     b.on("update", function () {
