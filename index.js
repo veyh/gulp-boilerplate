@@ -189,5 +189,7 @@ function setup(gulp, opts) {
       // Add transformation tasks to the pipeline here.
       .pipe(gulp.dest(opts.bundleDir));
   }
+
+  return { runSequence };
 }
 module.exports = setup;
