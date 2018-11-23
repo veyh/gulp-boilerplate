@@ -25,6 +25,8 @@ dependencies:
   vinyl-buffer: 1.0.1
   vinyl-source-stream: 2.0.0
   watchify: 3.11.0
+devDependencies:
+  flow-bin: 0.86.0
 packages:
   /@babel/code-frame/7.0.0:
     dependencies:
@@ -2307,6 +2309,13 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-0wMLMrOBVPTjt+nHCfSQ9++XxIE=
+  /flow-bin/0.86.0:
+    dev: true
+    engines:
+      node: '>=0.10.0'
+    hasBin: true
+    resolution:
+      integrity: sha512-ulRvFH3ewGIYwg+qPk/OJXoe3Nhqi0RyR0wqgK0b1NzUDEC6O99zU39MBTickXvlrr6iwRO6Wm4lVGeDmnzbew==
   /for-in/1.0.2:
     dev: false
     engines:
@@ -5396,6 +5405,7 @@ specifiers:
   envify: ^4.1.0
   eslint: ^5.6.0
   eslint-plugin-react: ^7.11.1
+  flow-bin: ^0.86.0
   gulp-babel: ^7.0.1
   gulp-changed: ^3.2.0
   gulp-concat: ^2.6.0
