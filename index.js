@@ -14,8 +14,10 @@ const source = require("vinyl-source-stream");
 const buffer = require("vinyl-buffer");
 const gutil = require("gulp-util");
 
+const madge = require("madge");
 const Promise = require("bluebird");
 const rimraf = Promise.promisify(require("rimraf"));
+const glob = Promise.promisify(require("glob"));
 
 function mergeWithDefaultOpts(opts) {
   const defaults = {
@@ -31,6 +33,7 @@ function mergeWithDefaultOpts(opts) {
     bundleDir: "dist",
     cleanDirs: ["es5"],
     jsSrc: null,
+    madgeSrc: null,
     sassSrc: null,
     sassIncludePaths: [],
     browserifyOptions: {
@@ -51,6 +54,8 @@ function setup(gulp, opts) {
 
   opts = mergeWithDefaultOpts(opts);
   const usingBabel = opts.jsSrc && opts.babelConfig && opts.es5Dir;
+  const madgeSrc = opts.madgeSrc || opts.jsSrc;
+  const usingMadge = madgeSrc;
   const usingSass = opts.sassSrc && opts.bundleDir;
   const usingBrowserify = opts.browserifyOptions.entries.length > 0 &&
     opts.bundleDir;
@@ -58,11 +63,16 @@ function setup(gulp, opts) {
     typeof opts.browserifyEnvConfig.src === "function";
   const usingWatch = usingBabel || usingSass || usingBrowserifyConfigEnv;
 
+  const commonTasks = [
+    "clean",
+    usingBabel && "babel",
+    usingMadge && "madge",
+    usingSass && "sass",
+  ];
+
   gulp.task("default", function (callback) {
     const seq = [
-      "clean",
-      usingBabel && "babel",
-      usingSass && "sass",
+      ...commonTasks,
       usingBrowserifyConfigEnv && "browserify-config",
       usingBrowserify && "watchify",
       usingWatch && "watch"
@@ -74,9 +84,7 @@ function setup(gulp, opts) {
 
   gulp.task("dev", function (callback) {
     const seq = [
-      "clean",
-      usingBabel && "babel",
-      usingSass && "sass",
+      ...commonTasks,
       usingBrowserifyConfigEnv && "browserify-config",
       usingBrowserify && "browserify",
     ]
@@ -87,9 +95,7 @@ function setup(gulp, opts) {
 
   gulp.task("prod", function (callback) {
     const seq = [
-      "clean",
-      usingBabel && "babel",
-      usingSass && "sass",
+      ...commonTasks,
       usingBrowserifyConfigEnv && "browserify-config",
       usingBrowserify && "browserify-prod",
     ]
@@ -125,6 +131,25 @@ function setup(gulp, opts) {
     // .pipe(notify("ES5 compiled."));
   });
 
+  usingMadge && gulp.task("madge", function () {
+    return glob(madgeSrc)
+      .then(files =>
+        madge(files)
+      )
+      .then(res => {
+        const deps = res.circular();
+
+        if (deps.length > 0) {
+          throw new Error(
+            "circular dependencies: " +
+            require("util").inspect(deps)
+          );
+        }
+
+        // Ok.
+      });
+  });
+
   usingSass &&
   gulp.task("sass", function () {
     return gulp.src(opts.sassSrc)
@@ -141,7 +166,7 @@ function setup(gulp, opts) {
 
   usingWatch &&
   gulp.task("watch", function () {
-    usingBabel && gulp.watch(opts.jsSrc , ["babel"]);
+    usingBabel && gulp.watch(opts.jsSrc , ["babel", "madge"]);
     usingSass && gulp.watch(opts.jsSrc, ["sass"]);
     usingBrowserifyConfigEnv &&
       gulp.watch(opts.browserifyEnvConfig.src(ENV), ["browserify-config"]);
