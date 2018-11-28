@@ -199,8 +199,8 @@ function setup(gulp, opts) {
     const b = browserify({
       cache: {},
       packageCache: {},
-      plugin: [...opts.browserifyOptions.plugin, watchify],
       ...opts.browserifyOptions,
+      plugin: [...opts.browserifyOptions.plugin, watchify],
     });
 
     b.on("log", gutil.log);
