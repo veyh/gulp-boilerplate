@@ -167,7 +167,7 @@ function setup(gulp, opts) {
   usingWatch &&
   gulp.task("watch", function () {
     usingBabel && gulp.watch(opts.jsSrc , ["babel", "madge"]);
-    usingSass && gulp.watch(opts.jsSrc, ["sass"]);
+    usingSass && gulp.watch(opts.sassSrc, ["sass"]);
     usingBrowserifyConfigEnv &&
       gulp.watch(opts.browserifyEnvConfig.src(ENV), ["browserify-config"]);
   });
