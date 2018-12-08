@@ -19,32 +19,74 @@ const Promise = require("bluebird");
 const rimraf = Promise.promisify(require("rimraf"));
 const glob = Promise.promisify(require("glob"));
 
-function mergeWithDefaultOpts(opts) {
-  const defaults = {
-    babelConfig: {
-      presets: ["es2015", "react", "stage-1"]
-        .map(p => `babel-preset-${p}`)
-        .map(require.resolve),
-      plugins: ["transform-flow-strip-types", "transform-object-rest-spread"]
-        .map(p => `babel-plugin-${p}`)
-        .map(require.resolve),
-    },
-    es5Dir: "es5",
-    bundleDir: "dist",
-    cleanDirs: ["es5"],
-    jsSrc: null,
-    madgeSrc: null,
-    sassSrc: null,
-    sassIncludePaths: [],
-    browserifyOptions: {
-      entries: [],
-      plugin: [],
-    },
-    browserifyEnvConfig: {},
-    useNotify: true,
-  };
+const BABEL_DEFAULTS = {
+  babelConfig: {
+    presets: [
+      "@babel/preset-env",
+      "@babel/preset-react",
+      "@babel/preset-flow",
+    ]
+    .map(require.resolve),
 
-  return _.merge(defaults, opts);
+    plugins: [
+      // Stage 0
+      "@babel/plugin-proposal-function-bind",
+
+      // Stage 1
+      "@babel/plugin-proposal-export-default-from",
+      "@babel/plugin-proposal-export-namespace-from",
+      "@babel/plugin-proposal-logical-assignment-operators",
+      ["@babel/plugin-proposal-optional-chaining", { "loose": false }],
+      ["@babel/plugin-proposal-pipeline-operator", {
+        "proposal": "minimal",
+      }],
+      ["@babel/plugin-proposal-nullish-coalescing-operator", {
+        "loose": false,
+      }],
+      "@babel/plugin-proposal-do-expressions",
+
+      // Other
+      "@babel/plugin-proposal-object-rest-spread",
+      "@babel/plugin-proposal-class-properties",
+
+      // We many not want/ need this!
+      ["@babel/plugin-transform-async-to-generator", {
+        "module": "bluebird",
+        "method": "coroutine"
+      }],
+    ]
+    .filter(x => !!x)
+    .map(plugin => {
+      if (typeof plugin === "string") {
+        return require.resolve(plugin);
+      }
+
+      if (_.isArray(plugin)) {
+        const [name, ...args] = plugin;
+
+        return [require.resolve(name), ...args];
+      }
+
+      throw new Error("invalid plugin type");
+    }),
+  },
+  es5Dir: "es5",
+  bundleDir: "dist",
+  cleanDirs: ["es5"],
+  jsSrc: null,
+  madgeSrc: null,
+  sassSrc: null,
+  sassIncludePaths: [],
+  browserifyOptions: {
+    entries: [],
+    plugin: [],
+  },
+  browserifyEnvConfig: {},
+  useNotify: true,
+};
+
+function mergeWithDefaultOpts(opts) {
+  return _.merge(BABEL_DEFAULTS, opts);
 }
 
 const ENV = process.env.CONFIG_ENV && `.${process.env.CONFIG_ENV}` || "";
@@ -52,7 +94,14 @@ const ENV = process.env.CONFIG_ENV && `.${process.env.CONFIG_ENV}` || "";
 function setup(gulp, opts) {
   const runSequence = require("run-sequence").use(gulp);
 
-  opts = mergeWithDefaultOpts(opts);
+  if (typeof opts === "function") {
+    opts = opts(_.cloneDeep(BABEL_DEFAULTS));
+  }
+
+  else {
+    opts = mergeWithDefaultOpts(opts);
+  }
+
   const usingBabel = opts.jsSrc && opts.babelConfig && opts.es5Dir;
   const madgeSrc = opts.madgeSrc || opts.jsSrc;
   const usingMadge = madgeSrc;
