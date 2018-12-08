@@ -19,14 +19,13 @@ const Promise = require("bluebird");
 const rimraf = Promise.promisify(require("rimraf"));
 const glob = Promise.promisify(require("glob"));
 
-const BABEL_DEFAULTS = {
+const DEFAULTS = {
   babelConfig: {
     presets: [
       "@babel/preset-env",
       "@babel/preset-react",
       "@babel/preset-flow",
-    ]
-    .map(require.resolve),
+    ],
 
     plugins: [
       // Stage 0
@@ -49,26 +48,11 @@ const BABEL_DEFAULTS = {
       "@babel/plugin-proposal-object-rest-spread",
       "@babel/plugin-proposal-class-properties",
 
-      // We many not want/ need this!
       ["@babel/plugin-transform-async-to-generator", {
         "module": "bluebird",
         "method": "coroutine"
       }],
-    ]
-    .filter(x => !!x)
-    .map(plugin => {
-      if (typeof plugin === "string") {
-        return require.resolve(plugin);
-      }
-
-      if (_.isArray(plugin)) {
-        const [name, ...args] = plugin;
-
-        return [require.resolve(name), ...args];
-      }
-
-      throw new Error("invalid plugin type");
-    }),
+    ],
   },
   es5Dir: "es5",
   bundleDir: "dist",
@@ -86,7 +70,7 @@ const BABEL_DEFAULTS = {
 };
 
 function mergeWithDefaultOpts(opts) {
-  return _.merge(BABEL_DEFAULTS, opts);
+  return _.merge(DEFAULTS, opts);
 }
 
 const ENV = process.env.CONFIG_ENV && `.${process.env.CONFIG_ENV}` || "";
@@ -95,12 +79,18 @@ function setup(gulp, opts) {
   const runSequence = require("run-sequence").use(gulp);
 
   if (typeof opts === "function") {
-    opts = opts(_.cloneDeep(BABEL_DEFAULTS));
+    opts = opts(_.cloneDeep(DEFAULTS));
   }
 
   else {
     opts = mergeWithDefaultOpts(opts);
   }
+
+  opts.babelConfig.presets =
+    resolveBabelPackages(opts.babelConfig.presets);
+
+  opts.babelConfig.plugins =
+    resolveBabelPackages(opts.babelConfig.plugins);
 
   const usingBabel = opts.jsSrc && opts.babelConfig && opts.es5Dir;
   const madgeSrc = opts.madgeSrc || opts.jsSrc;
@@ -278,4 +268,22 @@ function setup(gulp, opts) {
 
   return { runSequence };
 }
+
+function resolveBabelPackages(pkgs) {
+  return pkgs
+    .filter(x => !!x)
+    .map(p => {
+      if (typeof p === "string") {
+        return require.resolve(p);
+      }
+
+      if (_.isArray(p)) {
+        const [name, ...args] = p;
+        return [require.resolve(name), ...args];
+      }
+
+      throw new Error("invalid type");
+    });
+}
+
 module.exports = setup;
