@@ -14,7 +14,6 @@ dependencies:
   '@babel/preset-env': 7.2.0
   '@babel/preset-flow': 7.0.0
   '@babel/preset-react': 7.0.0
-  '@veyh/eslint-base': 'link:../eslint-base'
   '@veyh/eslint-config': 'link:../eslint-config'
   bluebird: 3.5.2
   browserify: 16.2.2
