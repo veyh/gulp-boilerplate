@@ -20,6 +20,7 @@ const rimraf = Promise.promisify(require("rimraf"));
 const glob = Promise.promisify(require("glob"));
 
 const DEFAULTS = {
+  babelWithoutRegenerator: false,
   babelConfig: {
     presets: [
       "@babel/preset-env",
@@ -84,6 +85,10 @@ function setup(gulp, opts) {
 
   else {
     opts = mergeWithDefaultOpts(opts);
+  }
+
+  if (opts.babelWithoutRegenerator) {
+    disableRegenerator(opts.babelConfig);
   }
 
   opts.babelConfig.presets =
@@ -284,6 +289,28 @@ function resolveBabelPackages(pkgs) {
 
       throw new Error("invalid type");
     });
+}
+
+function disableRegenerator(babelConfig) {
+  babelConfig.presets = babelConfig.presets
+    .map(p => {
+      if (p === "@babel/preset-env") {
+        return [p, {
+          exclude: [
+            "transform-regenerator",
+            "transform-async-to-generator"
+          ],
+        }];
+      }
+
+      return p;
+    });
+
+  babelConfig.plugins = babelConfig.plugins
+    .filter(p =>
+      !(_.isArray(p) &&
+        p[0] === "@babel/plugin-transform-async-to-generator")
+    );
 }
 
 module.exports = setup;

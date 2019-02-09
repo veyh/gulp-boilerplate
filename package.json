@@ -45,6 +45,13 @@
     "vinyl-source-stream": "^2.0.0",
     "watchify": "^3.7.0"
   },
+  "devDependencies": {
+    "babel-eslint": "^10.0.1",
+    "eslint": "^5.6.0",
+    "eslint-plugin-flowtype": "^3.2.0",
+    "eslint-plugin-react": "^7.11.1",
+    "eslint-plugin-react-hooks": "^1.0.1"
+  },
   "peerDependencies": {
     "gulp": "^3.9.1"
   }
