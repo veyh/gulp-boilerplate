@@ -57,7 +57,8 @@ const DEFAULTS = {
   },
   es5Dir: "es5",
   bundleDir: "dist",
-  cleanDirs: ["es5"],
+  cleanDirs: [],
+  cleanGlobs: [],
   jsSrc: null,
   madgeSrc: null,
   sassSrc: null,
@@ -148,11 +149,17 @@ function setup(gulp, opts) {
     runSequence(...seq, callback);
   });
 
-  gulp.task("clean", function (callback) {
-    Promise.each(opts.cleanDirs, dir => {
-      return rimraf(dir);
-    })
-    .asCallback(callback);
+  gulp.task("clean", function () {
+    return Promise.join(
+      Promise.each(opts.cleanGlobs, args =>
+        glob(...args)
+          .then(files =>
+            Promise.each(files, f => rimraf(f))
+          )
+      ),
+
+      Promise.each(opts.cleanDirs, d => rimraf(d)),
+    );
   });
 
   // NOTE: if using generators, check README
