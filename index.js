@@ -184,7 +184,7 @@ function setup(gulp, opts) {
   });
 
   usingMadge && gulp.task("madge", function () {
-    return glob(madgeSrc)
+    return globMany(madgeSrc)
       .then(files =>
         madge(files)
       )
@@ -201,6 +201,20 @@ function setup(gulp, opts) {
         // Ok.
       });
   });
+
+  function globMany(items) {
+    return Promise.map(ensureArray(items), item => glob(item))
+      .then(_.flatten)
+      .then(_.unique);
+  }
+
+  function ensureArray(arg) {
+    if (!_.isArray(arg)) {
+      arg = [arg];
+    }
+
+    return arg;
+  }
 
   usingSass &&
   gulp.task("sass", function () {
