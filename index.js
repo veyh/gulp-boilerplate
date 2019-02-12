@@ -16,6 +16,7 @@ const gutil = require("gulp-util");
 
 const madge = require("madge");
 const Promise = require("bluebird");
+Promise.config({ longStackTraces: true });
 const rimraf = Promise.promisify(require("rimraf"));
 const glob = Promise.promisify(require("glob"));
 
