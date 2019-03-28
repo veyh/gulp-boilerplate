@@ -54,6 +54,8 @@ const DEFAULTS = {
         "module": "bluebird",
         "method": "coroutine"
       }],
+
+      "babel-plugin-transform-dirname-filename",
     ],
   },
   es5Dir: "es5",
