@@ -66,12 +66,41 @@ const DEFAULTS = {
   madgeSrc: null,
   sassSrc: null,
   sassIncludePaths: [],
+
+  // Whether to show tray notifications when stuff gets compiled.
+  useNotify: true,
+
   browserifyOptions: {
     entries: [],
     plugin: [],
   },
+
+  // This is for when you need an additional config file as a bundle. It uses
+  // CONFIG_ENV environment variable to add a suffix for it. Example
+  //
+  // browserifyEnvConfig: {
+  //   src: env => "cfg" + env
+  // }
+  //
+  // With no CONFIG_ENV, results in "cfg"
+  // With CONFIG_ENV=test, results in "cfg.test"
   browserifyEnvConfig: {},
-  useNotify: true,
+
+  // Additional environment variables passed into browserify, which will the be
+  // replaced with their actual values in the bundle.
+  //
+  // Example
+  //
+  // browserifyEnv: {
+  //   FOO: "bar",
+  // }
+  //
+  // Every reference to process.env.FOO will be replaced with "bar".
+  browserifyEnv: {},
+
+  // Function that allows you to modify the preset sequences, for example add
+  // new tasks.
+  sequenceHook: (_taskName, seq) => seq,
 };
 
 function mergeWithDefaultOpts(opts) {
@@ -127,7 +156,10 @@ function setup(gulp, opts) {
     ]
     .filter(x => !!x);
 
-    runSequence(...seq, callback);
+    runSequence(
+      ...opts.sequenceHook("default", seq),
+      callback
+    );
   });
 
   gulp.task("dev", function (callback) {
@@ -138,7 +170,10 @@ function setup(gulp, opts) {
     ]
     .filter(x => !!x);
 
-    runSequence(...seq, callback);
+    runSequence(
+      ...opts.sequenceHook("dev", seq),
+      callback
+    );
   });
 
   gulp.task("prod", function (callback) {
@@ -149,7 +184,10 @@ function setup(gulp, opts) {
     ]
     .filter(x => !!x);
 
-    runSequence(...seq, callback);
+    runSequence(
+      ...opts.sequenceHook("prod", seq),
+      callback
+    );
   });
 
   gulp.task("clean", function () {
@@ -284,6 +322,7 @@ function setup(gulp, opts) {
       _: "purge",
       CONFIG_ENV: process.env.CONFIG_ENV || "",
       NODE_ENV: process.env.NODE_ENV || "development",
+      ...opts.browserifyEnv,
     }));
 
     return b.bundle()
