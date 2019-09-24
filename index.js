@@ -1,7 +1,6 @@
 const fs = require("fs");
 const babel = require("gulp-babel");
 const changed = require("gulp-changed");
-const sourcemaps = require("gulp-sourcemaps");
 const sass = require("gulp-sass");
 const notify = require("gulp-notify");
 const concat = require("gulp-concat");
@@ -12,7 +11,7 @@ const watchify = require("watchify");
 const browserify = require("browserify");
 const source = require("vinyl-source-stream");
 const buffer = require("vinyl-buffer");
-const gutil = require("gulp-util");
+const fancyLog = require("fancy-log");
 
 const madge = require("madge");
 const Promise = require("bluebird");
@@ -110,8 +109,6 @@ function mergeWithDefaultOpts(opts) {
 const ENV = process.env.CONFIG_ENV && `.${process.env.CONFIG_ENV}` || "";
 
 function setup(gulp, opts) {
-  const runSequence = require("run-sequence").use(gulp);
-
   if (typeof opts === "function") {
     opts = opts(_.cloneDeep(DEFAULTS));
   }
@@ -140,57 +137,79 @@ function setup(gulp, opts) {
     typeof opts.browserifyEnvConfig.src === "function";
   const usingWatch = usingBabel || usingSass || usingBrowserifyConfigEnv;
 
-  const commonTasks = [
-    "clean",
-    usingBabel && "babel",
-    usingMadge && "madge",
-    usingSass && "sass",
+  const tasks = {};
+  const lazyTasks = {};
+
+  function addTask(name, task) {
+    tasks[name] = task;
+  }
+
+  function addLazyTask(name, taskCreator) {
+    lazyTasks[name] = taskCreator;
+  }
+
+  function registerTasks() {
+    for (const taskName of Object.keys(tasks)) {
+      const task = tasks[taskName];
+      task.displayName = taskName;
+      gulp.task(taskName, task);
+    }
+
+    for (const taskName of Object.keys(lazyTasks)) {
+      const task = lazyTasks[taskName]();
+      task.displayName = taskName;
+      gulp.task(taskName, task);
+    }
+  }
+
+  const getCommonTasks = () => [
+    tasks.clean,
+    usingBabel && tasks.babel,
+    usingMadge && tasks.madge,
+    usingSass && tasks.sass,
   ];
 
-  gulp.task("default", function (callback) {
+  addLazyTask("default", function () {
     const seq = [
-      ...commonTasks,
-      usingBrowserifyConfigEnv && "browserify-config",
-      usingBrowserify && "watchify",
-      usingWatch && "watch"
+      ...getCommonTasks(),
+      usingBrowserifyConfigEnv && tasks["browserify-config"],
+      usingBrowserify && tasks.watchify,
+      usingWatch && tasks.watch
     ]
     .filter(x => !!x);
 
-    runSequence(
+    return gulp.series(
       ...opts.sequenceHook("default", seq),
-      callback
     );
   });
 
-  gulp.task("dev", function (callback) {
+  addLazyTask("dev", function () {
     const seq = [
-      ...commonTasks,
-      usingBrowserifyConfigEnv && "browserify-config",
-      usingBrowserify && "browserify",
+      ...getCommonTasks(),
+      usingBrowserifyConfigEnv && tasks["browserify-config"],
+      usingBrowserify && tasks.browserify,
     ]
     .filter(x => !!x);
 
-    runSequence(
+    return gulp.series(
       ...opts.sequenceHook("dev", seq),
-      callback
     );
   });
 
-  gulp.task("prod", function (callback) {
+  addLazyTask("prod", function () {
     const seq = [
-      ...commonTasks,
-      usingBrowserifyConfigEnv && "browserify-config",
-      usingBrowserify && "browserify-prod",
+      ...getCommonTasks(),
+      usingBrowserifyConfigEnv && tasks["browserify-config"],
+      usingBrowserify && tasks["browserify-prod"],
     ]
     .filter(x => !!x);
 
-    runSequence(
-      ...opts.sequenceHook("prod", seq),
-      callback
+    return gulp.series(
+      ...opts.sequenceHook("prod", seq)
     );
   });
 
-  gulp.task("clean", function () {
+  addTask("clean", function () {
     return Promise.join(
       Promise.each(opts.cleanGlobs, args =>
         glob(...args)
@@ -206,24 +225,22 @@ function setup(gulp, opts) {
   // NOTE: if using generators, check README
   // https://www.npmjs.com/package/gulp-babel
   usingBabel &&
-  gulp.task("babel", function () {
+  addTask("babel", function () {
     const babelStream = babel(opts.babelConfig);
 
     babelStream.on("error", err => {
-      gutil.log("Babel Error", err);
+      fancyLog("Babel Error", err);
       babelStream.end();
     });
 
-    return gulp.src(opts.jsSrc)
+    return gulp.src(opts.jsSrc, { sourcemaps: true })
       .pipe(changed(opts.es5Dir))
-      .pipe(sourcemaps.init())
       .pipe(babelStream)
-      .pipe(sourcemaps.write())
-      .pipe(gulp.dest(opts.es5Dir));
+      .pipe(gulp.dest(opts.es5Dir, { sourcemaps: true }));
     // .pipe(notify("ES5 compiled."));
   });
 
-  usingMadge && gulp.task("madge", function () {
+  usingMadge && addTask("madge", function () {
     return globMany(madgeSrc)
       .then(files =>
         madge(files)
@@ -257,29 +274,27 @@ function setup(gulp, opts) {
   }
 
   usingSass &&
-  gulp.task("sass", function () {
-    return gulp.src(opts.sassSrc)
-      .pipe(sourcemaps.init())
+  addTask("sass", function () {
+    return gulp.src(opts.sassSrc, { sourcemaps: true })
       .pipe(sass({
         includePaths: opts.sassIncludePaths,
       })
       .on("error", sass.logError))
-      .pipe(sourcemaps.write())
       .pipe(concat("bundle.css"))
-      .pipe(gulp.dest(opts.bundleDir));
+      .pipe(gulp.dest(opts.bundleDir, { sourcemaps: true }));
     // .pipe(notify("CSS compiled."));
   });
 
   usingWatch &&
-  gulp.task("watch", function () {
-    usingBabel && gulp.watch(opts.jsSrc , ["babel", "madge"]);
-    usingSass && gulp.watch(opts.sassSrc, ["sass"]);
+  addTask("watch", function () {
+    usingBabel && gulp.watch(opts.jsSrc , gulp.parallel("babel", "madge"));
+    usingSass && gulp.watch(opts.sassSrc, tasks.sass);
     usingBrowserifyConfigEnv &&
       gulp.watch(opts.browserifyEnvConfig.src(ENV), ["browserify-config"]);
   });
 
   usingBrowserifyConfigEnv &&
-  gulp.task("browserify-config", function () {
+  addTask("browserify-config", function () {
     fs.writeFileSync(
       `${opts.bundleDir}/config.browserify.js`,
       fs.readFileSync(opts.browserifyEnvConfig.src(ENV))
@@ -287,21 +302,21 @@ function setup(gulp, opts) {
   });
 
   usingBrowserify &&
-  gulp.task("browserify", function () {
+  addTask("browserify", function () {
     const b = browserify({ ...opts.browserifyOptions, debug: true });
-    b.on("log", gutil.log);
+    b.on("log", fancyLog);
     return bundle(b);
   });
 
   usingBrowserify &&
-  gulp.task("browserify-prod", function () {
+  addTask("browserify-prod", function () {
     const b = browserify({ ...opts.browserifyOptions, debug: false });
-    b.on("log", gutil.log);
+    b.on("log", fancyLog);
     return bundle(b);
   });
 
   usingBrowserify &&
-  gulp.task("watchify", function () {
+  addTask("watchify", function () {
     const b = browserify({
       cache: {},
       packageCache: {},
@@ -309,7 +324,7 @@ function setup(gulp, opts) {
       plugin: [...opts.browserifyOptions.plugin, watchify],
     });
 
-    b.on("log", gutil.log);
+    b.on("log", fancyLog);
     b.on("update", function () {
       return bundle(b);
     });
@@ -326,7 +341,7 @@ function setup(gulp, opts) {
     }));
 
     return b.bundle()
-      .on("error", gutil.log.bind(gutil, "Browserify Error"))
+      .on("error", (...args) => fancyLog("Browserify Error", ...args))
       .pipe(source("bundle.js"))
       .pipe(buffer())
       .pipe(notify("Browserified."))
@@ -334,7 +349,7 @@ function setup(gulp, opts) {
       .pipe(gulp.dest(opts.bundleDir));
   }
 
-  return { runSequence };
+  registerTasks();
 }
 
 function resolveBabelPackages(pkgs) {
