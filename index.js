@@ -63,6 +63,15 @@ const DEFAULTS = {
   cleanGlobs: [],
   jsSrc: null,
   madgeSrc: null,
+
+  // Some packages may intentionally self-reference, so you can provide a
+  // function to ignore those.
+  //
+  // Will be called with each found circular dependency, eg.
+  //   ["knex.js"] // a self-referencing module
+  //   ["some/file.js"] // a self-referencing file
+  madgeAllowCircular: _dependency => false,
+
   sassSrc: null,
   sassIncludePaths: [],
 
@@ -246,7 +255,11 @@ function setup(gulp, opts) {
         madge(files)
       )
       .then(res => {
-        const deps = res.circular();
+        const deps = res
+          .circular()
+          .filter(dep =>
+            !opts.madgeAllowCircular(dep)
+          );
 
         if (deps.length > 0) {
           throw new Error(
