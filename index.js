@@ -208,6 +208,7 @@ function setup(gulp, opts) {
   addLazyTask("prod", function () {
     const seq = [
       ...getCommonTasks(),
+      setDefaultEnvToProduction,
       usingBrowserifyConfigEnv && tasks["browserify-config"],
       usingBrowserify && tasks["browserify-prod"],
     ]
@@ -217,6 +218,11 @@ function setup(gulp, opts) {
       ...opts.sequenceHook("prod", seq)
     );
   });
+
+  function setDefaultEnvToProduction(done) {
+    process.env.NODE_ENV = process.env.NODE_ENV || "production";
+    done();
+  }
 
   addTask("clean", function () {
     return Promise.join(
