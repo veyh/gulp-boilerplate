@@ -4,6 +4,8 @@ const changed = require("gulp-changed");
 const sass = require("gulp-sass");
 const notify = require("gulp-notify");
 const concat = require("gulp-concat");
+const merge = require("merge-stream");
+const path = require("path");
 
 const _ = require("lodash");
 const envify = require("envify/custom");
@@ -79,9 +81,24 @@ const DEFAULTS = {
   useNotify: true,
 
   browserifyOptions: {
-    entries: [],
+    // entries: [],
     plugin: [],
   },
+
+  // If true, browserifyOptions.entries will be treated in the following manner
+  //
+  //   ["some/file.js", "other/file.js"]
+  //      "some/file.js" --> "dist/some/file.bundle.js"
+  //      "other/file.js" --> "dist/other/file.bundle.js"
+  //
+  //   { "dst/bundle.js": "src/file.js" }
+  //     "src/file.js" --> "dst/bundle.js"
+  //
+  //   { "dst/bundle.js": ["src/aaa.js", "src/bbb.js"] }
+  //     "src/aaa.js" --> "dst/bundle.js"
+  //     "src/bbb.js" --> "dst/bundle.js"
+  //
+  browserifyIntoMultipleFiles: false,
 
   // This is for when you need an additional config file as a bundle. It uses
   // CONFIG_ENV environment variable to add a suffix for it. Example
@@ -140,7 +157,7 @@ function setup(gulp, opts) {
   const madgeSrc = opts.madgeSrc || opts.jsSrc;
   const usingMadge = madgeSrc;
   const usingSass = opts.sassSrc && opts.bundleDir;
-  const usingBrowserify = opts.browserifyOptions.entries.length > 0 &&
+  const usingBrowserify = _.size(opts.browserifyOptions.entries) > 0 &&
     opts.bundleDir;
   const usingBrowserifyConfigEnv = usingBrowserify &&
     typeof opts.browserifyEnvConfig.src === "function";
@@ -320,38 +337,97 @@ function setup(gulp, opts) {
     );
   });
 
+  function mapBrowserifyDstSrcs(func) {
+    return _.map(getBrowserifyDstSrcs(), func);
+  }
+
+  function getBrowserifyDstSrcs() {
+    const entries = getBrowserifyEntries();
+
+    if (opts.browserifyIntoMultipleFiles) {
+      return entries;
+    }
+
+    return _.reduce(entries, (acc, srcs) => {
+      const dst = path.normalize(`${opts.bundleDir}/bundle.js`);
+      acc[dst] = [...(acc[dst] || []), ...srcs];
+      return acc;
+    }, {});
+  }
+
+  function getBrowserifyEntries() {
+    const entries = opts.browserifyOptions.entries;
+
+    if (!entries) {
+      return {};
+    }
+
+    if (_.isArray(entries)) {
+      return entries.reduce((acc, src) => {
+        const dir = path.dirname(src);
+        const ext = path.extname(src);
+        const base = path.basename(src, ext);
+        const dst = path.normalize(`dist/${dir}/${base}.bundle${ext}`);
+        acc[dst] = [src];
+        return acc;
+      }, {});
+    }
+
+    return _.mapValues(
+      entries,
+      srcs => _.isArray(srcs) ? srcs : [srcs]
+    );
+  }
+
   usingBrowserify &&
   addTask("browserify", function () {
-    const b = browserify({ ...opts.browserifyOptions, debug: true });
-    b.on("log", fancyLog);
-    return bundle(b);
+    return merge(mapBrowserifyDstSrcs((srcs, dst) => {
+      const b = browserify({
+        ...opts.browserifyOptions,
+        entries: srcs,
+        debug: true,
+      });
+
+      b.on("log", fancyLog);
+      return bundle(b, dst);
+    }));
   });
 
   usingBrowserify &&
   addTask("browserify-prod", function () {
-    const b = browserify({ ...opts.browserifyOptions, debug: false });
-    b.on("log", fancyLog);
-    return bundle(b);
+    return merge(mapBrowserifyDstSrcs((srcs, dst) => {
+      const b = browserify({
+        ...opts.browserifyOptions,
+        entries: srcs,
+        debug: false,
+      });
+
+      b.on("log", fancyLog);
+      return bundle(b, dst);
+    }));
   });
 
   usingBrowserify &&
   addTask("watchify", function () {
-    const b = browserify({
-      cache: {},
-      packageCache: {},
-      ...opts.browserifyOptions,
-      plugin: [...opts.browserifyOptions.plugin, watchify],
-    });
+    return merge(mapBrowserifyDstSrcs((srcs, dst) => {
+      const b = browserify({
+        cache: {},
+        packageCache: {},
+        ...opts.browserifyOptions,
+        entries: srcs,
+        plugin: [...opts.browserifyOptions.plugin, watchify],
+      });
 
-    b.on("log", fancyLog);
-    b.on("update", function () {
-      return bundle(b);
-    });
+      b.on("log", fancyLog);
+      b.on("update", function () {
+        return bundle(b, dst);
+      });
 
-    return bundle(b);
+      return bundle(b, dst);
+    }));
   });
 
-  function bundle(b) {
+  function bundle(b, dst) {
     b.transform(envify({
       _: "purge",
       CONFIG_ENV: process.env.CONFIG_ENV || "",
@@ -359,13 +435,16 @@ function setup(gulp, opts) {
       ...opts.browserifyEnv,
     }));
 
+    const dstName = path.basename(dst);
+    const dstDir = path.dirname(dst);
+
     return b.bundle()
       .on("error", (...args) => fancyLog("Browserify Error", ...args))
-      .pipe(source("bundle.js"))
+      .pipe(source(dstName))
       .pipe(buffer())
       .pipe(notify("Browserified."))
       // Add transformation tasks to the pipeline here.
-      .pipe(gulp.dest(opts.bundleDir));
+      .pipe(gulp.dest(dstDir));
   }
 
   registerTasks();
