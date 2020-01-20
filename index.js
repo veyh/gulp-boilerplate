@@ -19,7 +19,6 @@ const madge = require("madge");
 const Promise = require("bluebird");
 Promise.config({ longStackTraces: true });
 const rimraf = Promise.promisify(require("rimraf"));
-const glob = Promise.promisify(require("glob"));
 
 const DEFAULTS = {
   babelWithoutRegenerator: false,
@@ -62,9 +61,9 @@ const DEFAULTS = {
   es5Dir: "es5",
   bundleDir: "dist",
   cleanDirs: [],
-  cleanGlobs: [],
-  jsSrc: null,
-  madgeSrc: null,
+  cleanSrc: [], // passed to gulp.src()
+  jsSrc: null, // passed to gulp.src()
+  madgeSrc: null, // passed to gulp.src()
 
   // Some packages may intentionally self-reference, so you can provide a
   // function to ignore those.
@@ -74,7 +73,7 @@ const DEFAULTS = {
   //   ["some/file.js"] // a self-referencing file
   madgeAllowCircular: _dependency => false,
 
-  sassSrc: null,
+  sassSrc: null, // passed to gulp.src()
   sassIncludePaths: [],
 
   // Whether to show tray notifications when stuff gets compiled.
@@ -241,14 +240,19 @@ function setup(gulp, opts) {
     done();
   }
 
+  function promiseFromVinylStream(stream) {
+    return new Promise((resolve, reject) => {
+      const files = [];
+      stream.on("data", file => { files.push(file); });
+      stream.on("end", () => resolve(files));
+      stream.on("error", error => reject(error));
+    });
+  }
+
   addTask("clean", function () {
     return Promise.join(
-      Promise.each(opts.cleanGlobs, args =>
-        glob(...args)
-          .then(files =>
-            Promise.each(files, f => rimraf(f))
-          )
-      ),
+      promiseFromVinylStream(gulp.src(opts.cleanSrc))
+        .map(file => file.path),
 
       Promise.each(opts.cleanDirs, d => rimraf(d)),
     );
@@ -273,10 +277,9 @@ function setup(gulp, opts) {
   });
 
   usingMadge && addTask("madge", function () {
-    return globMany(madgeSrc)
-      .then(files =>
-        madge(files)
-      )
+    return promiseFromVinylStream(gulp.src(madgeSrc))
+      .map(file => file.path)
+      .then(madge)
       .then(res => {
         const deps = res
           .circular()
@@ -294,20 +297,6 @@ function setup(gulp, opts) {
         // Ok.
       });
   });
-
-  function globMany(items) {
-    return Promise.map(ensureArray(items), item => glob(item))
-      .then(_.flatten)
-      .then(_.unique);
-  }
-
-  function ensureArray(arg) {
-    if (!_.isArray(arg)) {
-      arg = [arg];
-    }
-
-    return arg;
-  }
 
   usingSass &&
   addTask("sass", function () {
