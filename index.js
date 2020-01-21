@@ -251,7 +251,7 @@ function setup(gulp, opts) {
 
   addTask("clean", function () {
     return Promise.join(
-      promiseFromVinylStream(gulp.src(opts.cleanSrc))
+      opts.cleanSrc.length && promiseFromVinylStream(gulp.src(opts.cleanSrc))
         .map(file => file.path),
 
       Promise.each(opts.cleanDirs, d => rimraf(d)),
