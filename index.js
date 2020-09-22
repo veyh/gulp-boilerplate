@@ -9,6 +9,7 @@ const path = require("path");
 
 const _ = require("lodash");
 const envify = require("envify/custom");
+const uglifyify = require("uglifyify");
 const watchify = require("watchify");
 const browserify = require("browserify");
 const source = require("vinyl-source-stream");
@@ -423,6 +424,10 @@ function setup(gulp, opts) {
       NODE_ENV: process.env.NODE_ENV || "development",
       ...opts.browserifyEnv,
     }));
+
+    if (process.env.NODE_ENV === "production") {
+      b.transform(uglifyify);
+    }
 
     const dstName = path.basename(dst);
     const dstDir = path.dirname(dst);
