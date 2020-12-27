@@ -428,7 +428,7 @@ function setup(gulp, opts) {
     }));
 
     if (process.env.NODE_ENV === "production") {
-      b.transform(uglifyify);
+      b.transform(uglifyify, { global: true });
     }
 
     const dstName = path.basename(dst);
