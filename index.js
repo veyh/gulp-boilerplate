@@ -104,11 +104,9 @@ const DEFAULTS = {
   // CONFIG_ENV environment variable to add a suffix for it. Example
   //
   // browserifyEnvConfig: {
-  //   src: env => "cfg" + env
+  //   src: CONFIG_ENV => "cfg" + CONFIG_ENV,
+  //   dst: CONFIG_ENV => `${opts.bundleDir}/config.browserify.js`, // default
   // }
-  //
-  // With no CONFIG_ENV, results in "cfg"
-  // With CONFIG_ENV=test, results in "cfg.test"
   browserifyEnvConfig: {},
 
   // Additional environment variables passed into browserify, which will the be
@@ -323,10 +321,12 @@ function setup(gulp, opts) {
 
   usingBrowserifyConfigEnv &&
   addTask("browserify-config", function () {
-    fs.writeFileSync(
-      `${opts.bundleDir}/config.browserify.js`,
-      fs.readFileSync(opts.browserifyEnvConfig.src(ENV))
-    );
+    const src = opts.browserifyEnvConfig.src(ENV);
+    const dst = typeof opts.browserifyEnvConfig.dst === "function"
+      ? opts.browserifyEnvConfig.dst(ENV)
+      : `${opts.bundleDir}/config.browserify.js`;
+
+    fs.writeFileSync(dst, fs.readFileSync(src));
   });
 
   function mapBrowserifyDstSrcs(func) {
