@@ -255,7 +255,9 @@ function setup(gulp, opts) {
       opts.cleanSrc.length && promiseFromVinylStream(gulp.src(opts.cleanSrc))
         .map(file => file.path),
 
-      Promise.each(opts.cleanDirs, d => rimraf(d)),
+      opts.cleanDirs &&
+        opts.cleanDirs.length &&
+        Promise.each(opts.cleanDirs, d => rimraf(d)),
     );
   });
 
