@@ -24,7 +24,7 @@
     "@veyh/eslint-config": "veyh/eslint-config",
     "babel-plugin-transform-dirname-filename": "^1.1.0",
     "bluebird": "^3.5.5",
-    "browserify": "^16.5.0",
+    "browserify": "^17.0.0",
     "core-js": "^3.6.5",
     "envify": "^4.1.0",
     "eslint": "^6.1.0",
