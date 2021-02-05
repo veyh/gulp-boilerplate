@@ -6,6 +6,7 @@ const notify = require("gulp-notify");
 const concat = require("gulp-concat");
 const merge = require("merge-stream");
 const path = require("path");
+const sourcemaps = require("gulp-sourcemaps");
 
 const _ = require("lodash");
 const envify = require("envify/custom");
@@ -64,6 +65,15 @@ const DEFAULTS = {
   cleanDirs: [],
   cleanSrc: [], // passed to gulp.src()
   jsSrc: null, // passed to gulp.src()
+
+  // Passed to gulp.src() as second argument. If you got jsSrc like
+  // ["src/**/*.js"], then you should set { base: "src" } for sourcemaps to
+  // work correctly.
+  jsSrcOpts: null,
+
+  // only compile changed files
+  jsCache: true,
+
   madgeSrc: null, // passed to gulp.src()
 
   // Some packages may intentionally self-reference, so you can provide a
@@ -270,11 +280,35 @@ function setup(gulp, opts) {
       babelStream.end();
     });
 
-    return gulp.src(opts.jsSrc, { sourcemaps: true })
-      .pipe(changed(opts.es5Dir))
-      .pipe(babelStream)
-      .pipe(gulp.dest(opts.es5Dir, { sourcemaps: true }));
-    // .pipe(notify("ES5 compiled."));
+    let res = gulp.src(opts.jsSrc, opts.jsSrcOpts);
+
+    const streams = [
+      opts.jsCache && changed(opts.es5Dir),
+      sourcemaps.init(),
+      babelStream,
+      sourcemaps.write({
+        // eslint-disable-next-line
+        // https://github.com/gulp-sourcemaps/gulp-sourcemaps/issues/191#issuecomment-345196267
+        sourceRoot: (file) => {
+          const dir = path.posix.dirname(file.relative);
+          const base = opts.jsSrcOpts
+            && opts.jsSrcOpts.base
+            && `../${opts.jsSrcOpts.base}`
+            || "";
+
+          return path.posix.relative(dir, base);
+        },
+      }),
+      gulp.dest(opts.es5Dir),
+      // notify("ES5 compiled."),
+    ]
+    .filter(x => !!x);
+
+    for (const stream of streams) {
+      res = res.pipe(stream);
+    }
+
+    return res;
   });
 
   usingMadge && addTask("madge", function () {
@@ -438,8 +472,10 @@ function setup(gulp, opts) {
       .on("error", (...args) => fancyLog("Browserify Error", ...args))
       .pipe(source(dstName))
       .pipe(buffer())
-      .pipe(notify("Browserified."))
+      // .pipe(sourcemaps.init({ loadMaps: true }))
       // Add transformation tasks to the pipeline here.
+      // .pipe(sourcemaps.write())
+      .pipe(notify("Browserified."))
       .pipe(gulp.dest(dstDir));
   }
 
